@@ -433,10 +433,14 @@ def main():
             "Optimize 'aa' or 'nt' sequence." "\n"
             "3 formats for codon usage table are supported." "\n"
             "Output is in the format (FREQUENCY, SEQUENCE)." "\n"
+            "The program will first check to see if the input SEQUENCE "
+            "is composed exclusively of 'nt' characters. If it is not, "
+            "then it will check to see if it is made of 'aa' characters." "\n"
+            "Space (' ') characters are allowed in SEQUENCE." "\n"
         ),
         epilog=(
             "example:" "\n"
-            "  (python3 simple-codon-optimizer.py 5501_codons.txt 1 ASRwLAQC)" "\n"
+            "  (python3 simple-codon-optimizer.py 5501_codons.txt 1 ASRWLAQC)" "\n"
             "example:" "\n"
             '  (python3 simple-codon-optimizer.py "Codon usage table 5501.html" 1 "GCA TCA AGA TGG CTG GCG CAA TGT")' "\n"
         )
