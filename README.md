@@ -19,7 +19,7 @@ $ python3 simple-codom-optimizer.py --help
 ```
 
 It returns the following output.
-```sh
+```
 usage: simple-codon-optimizer.py [-h] [--deterministic] [--samples N]
                                  [--display N] [--suppress]
                                  USAGE_TABLE TRANSLATION_TABLE SEQUENCE
@@ -54,7 +54,7 @@ $ python simple-codon-optimizer.py "examples\Codon usage table 5501.html" 1 "GCA
 ```
 
 Which returns the following.
-```sh
+```
 0.0009 GCCTCCCGCTGGCTCGCCCAGTGC
 0.00073 GCCAGCCGCTGGCTCGCCCAGTGC
 0.00072 GCCTCCCGCTGGCTCGCCCAGTGT
@@ -73,7 +73,7 @@ $ python3 simple-codon-optimizer.py examples\5501_codons.txt 1 ASRWLAQC
 ```
 
 This creates the following (verbose) output.
-```sh
+```
 Loading translation tabels.
 Parsing codon usage table.
 Usage table:
