@@ -1,0 +1,117 @@
+Codon usage table for Candida albicans Assembly 21
+
+This table was produced with the GCG program CodonFrequency using the
+orf_coding_assembly_21.fasta.gz file dated 20-Sep-2007. 
+
+Mitochondrial gene sequences were removed from the file before
+calculating codon usage frequencies.
+
+Note that C. albicans uses an alternative genetic code for nuclear
+genes, different from that used by most other fungi. Details and links
+to translation tables for nuclear and mitochondrial genes can be found
+at NCBI's Taxonomy Browser:
+
+http://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id=237561&lvl=3&lin=f&keep=1&srchmode=1&unlock
+
+In the tab-delimited table below, the columns are as follows:
+
+1) Amino acid, in three-letter code
+
+2) Codon for that amino acid 
+
+3) Number of occurrences of that codon in the genes from which the
+table is compiled
+
+4) Expected number of occurrences of that codon per 1000 codons in
+genes whose codon usage is identical to that compiled in the codon
+frequency table
+
+5) Fraction of occurrences of that codon in its synonymous codon
+family
+
+Copy and paste the table into a spreadsheet program for an
+easy-to-read display.
+
+Candida albicans Codon Usage
+
+AmAcid Codon Number /1000 Fraction ..
+ 
+Gly     GGG     22390.00      7.50      0.15
+Gly     GGA     43380.00     14.53      0.29
+Gly     GGU     71867.00     24.08      0.48
+Gly     GGC     13184.00      4.42      0.09
+ 
+Glu     GAG     39354.00     13.18      0.21
+Glu     GAA     152586.00     51.12      0.79
+Asp     GAU     136115.00     45.60      0.78
+Asp     GAC     39337.00     13.18      0.22
+ 
+Val     GUG     30930.00     10.36      0.19
+Val     GUA     28990.00      9.71      0.18
+Val     GUU     78121.00     26.17      0.48
+Val     GUC     23518.00      7.88      0.15
+ 
+Ala     GCG      7070.00      2.37      0.05
+Ala     GCA     48339.00     16.19      0.32
+Ala     GCU     64347.00     21.56      0.43
+Ala     GCC     29911.00     10.02      0.20
+ 
+Arg     AGG      9394.00      3.15      0.08
+Arg     AGA     62927.00     21.08      0.56
+Ser     AGU     53230.00     17.83      0.20
+Ser     AGC     14955.00      5.01      0.05
+ 
+Lys     AAG     58175.00     19.49      0.27
+Lys     AAA     160765.00     53.86      0.73
+Asn     AAU     144112.00     48.28      0.72
+Asn     AAC     55425.00     18.57      0.28
+ 
+Met     AUG     53092.00     17.79      1.00
+Ile     AUA     54113.00     18.13      0.26
+Ile     AUU     119355.00     39.99      0.56
+Ile     AUC     38657.00     12.95      0.18
+ 
+Thr     ACG     12209.00      4.09      0.07
+Thr     ACA     58294.00     19.53      0.32
+Thr     ACU     77494.00     25.96      0.42
+Thr     ACC     35024.00     11.73      0.19
+ 
+Trp     UGG     28969.00      9.70      1.00
+End     UGA      1019.00      0.34      0.17
+Cys     UGU     26651.00      8.93      0.82
+Cys     UGC      5700.00      1.91      0.18
+ 
+End     UAG      1797.00      0.60      0.29
+End     UAA      3276.00      1.10      0.54
+Tyr     UAU     77027.00     25.80      0.73
+Tyr     UAC     28880.00      9.68      0.27
+ 
+Leu     UUG     101379.00     33.96      0.37
+Leu     UUA     116049.00     38.88      0.42
+Phe     UUU     89902.00     30.12      0.68
+Phe     UUC     41994.00     14.07      0.32
+ 
+Ser     UCG     20617.00      6.91      0.08
+Ser     UCA     80576.00     26.99      0.30
+Ser     UCU     59287.00     19.86      0.22
+Ser     UCC     26096.00      8.74      0.10
+ 
+Arg     CGG      3768.00      1.26      0.03
+Arg     CGA     15521.00      5.20      0.14
+Arg     CGU     18089.00      6.06      0.16
+Arg     CGC      2716.00      0.91      0.02
+ 
+Gln     CAG     22803.00      7.64      0.17
+Gln     CAA     110878.00     37.15      0.83
+His     CAU     46627.00     15.62      0.74
+His     CAC     16075.00      5.39      0.26
+ 
+Ser     CUG     12575.00      4.21      0.05
+Leu     CUA     17757.00      5.95      0.07
+Leu     CUU     30999.00     10.39      0.11
+Leu     CUC      8297.00      2.78      0.03
+ 
+Pro     CCG      9325.00      3.12      0.07
+Pro     CCA     71430.00     23.93      0.54
+Pro     CCU     38715.00     12.97      0.29
+Pro     CCC     13513.00      4.53      0.10

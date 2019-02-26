@@ -3,7 +3,7 @@
 ### Description ###
 Program for converting nucleotide or amino acid sequences into an "optimized" nucleotide sequence using nucleotide triplet information.
 
-Automatically downloads codon translation table from NCBI.
+Automatically downloads codon translation tables from NCBI.
 
 Can parse several formats of codon usage tables (see included examples).
 
@@ -24,11 +24,18 @@ usage: simple-codon-optimizer.py [-h] [--deterministic] [--samples N]
                                  [--display N] [--suppress]
                                  USAGE_TABLE TRANSLATION_TABLE SEQUENCE
 
-Optimize 'aa' or 'nt' sequence. 3 formats for codon usage table are supported.
-Output is in the format (FREQUENCY, SEQUENCE). The program will first check to
-see if the input SEQUENCE is composed exclusively of 'nt' characters. If it is
-not, then it will check to see if it is made of 'aa' characters. Space (' ')
-characters are allowed in SEQUENCE.
+description:
+  Program to optimize 'aa' or 'nt' sequences.
+
+  Several formats for codon usage table are supported (See included
+  example files).
+
+  Output is in the format (FREQUENCY, SEQUENCE).
+
+  The program will first check to see if the input SEQUENCE is composed
+  exclusively of 'nt' characters. If it is not, then it will check to
+  see if it is made of 'aa' characters. Space (' ') characters are
+  allowed in SEQUENCE.
 
 positional arguments:
   USAGE_TABLE        File containing the codon usage table (counts).
@@ -36,21 +43,23 @@ positional arguments:
   SEQUENCE           'nt' or 'aa' sequence to optimize.
 
 optional arguments:
-  -h, --help         show this help message and exit
+  -h, --help         Show this help message and exit.
   --deterministic    Instead of calculating a distribution of sequences, just
-                     find the single most-optimal sequence.
-  --samples N        Number of sequences to generate.
-  --display N        Number of output sequences to display.
-  --suppress         Suppress STDERR messages.
+                     find the single most-optimal sequence. (default: False)
+  --samples N        Number of sequences to generate. (default: 100000)
+  --display N        Number of output sequences to display. (default: 10)
+  --suppress         Suppress STDERR messages. (default: False)
 
-example: (python3 simple-codon-optimizer.py 5501_codons.txt 1 ASRWLAQC)
-example: (python3 simple-codon-optimizer.py "Codon usage table 5501.html" 1
-"GCA TCA AGA TGG CTG GCG CAA TGT")
+examples:
+  python3 simple-codon-optimizer.py examples/5501_codons.txt 1 ASRWLAQC
+  python3 simple-codon-optimizer.py "examples/Codon usage table 5501.html" 1 "GCA TCA AGA TGG CTG GCG CAA TGT"
+  python3 simple-codon-optimizer.py examples/C_albicans_codon_usage.tab 12 EGRGSLLTCGDVEENPGP --deterministic
+
 ```
 
 A basic program usage using DNA triplets as input would look like this.
 ```sh
-$ python simple-codon-optimizer.py "examples\Codon usage table 5501.html" 1 "GCA TCA AGA TGG CTG GCG CAA TGT" --suppress
+$ python3 simple-codon-optimizer.py "examples\Codon usage table 5501.html" 1 "GCA TCA AGA TGG CTG GCG CAA TGT" --suppress
 ```
 
 Which returns the following.

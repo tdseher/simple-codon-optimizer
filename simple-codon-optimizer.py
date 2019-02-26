@@ -14,6 +14,29 @@ import itertools
 import operator
 import argparse
 
+class CustomHelpFormatter(argparse.HelpFormatter):
+    """Help message formatter which retains any formatting in descriptions
+    and adds default values to argument help.
+    
+    Only the name of this class is considered a public API. All the methods
+    provided by the class are considered an implementation detail.
+    """
+    # This class combines:
+    #   argparse.ArgumentDefaultsHelpFormatter
+    #   argparse.RawDescriptionHelpFormatter
+    
+    def _fill_text(self, text, width, indent):
+        return ''.join([indent + line for line in text.splitlines(True)])
+    
+    def _get_help_string(self, action):
+        help = action.help
+        if '%(default)' not in action.help:
+            if action.default is not argparse.SUPPRESS:
+                defaulting_nargs = [argparse.OPTIONAL, argparse.ZERO_OR_MORE]
+                if action.option_strings or action.nargs in defaulting_nargs:
+                    help += ' (default: %(default)s)'
+        return help
+
 def parse_translation_tables(text):
     '''
     The format that is parsed:
@@ -136,6 +159,8 @@ def parse_format_b(text):
     table = {}
     for m in re.findall(r'([ACGTU]{3}),(\d+)', text):
         codon, number = m[0], int(m[1])
+        codon = codon.replace('U', 'T')
+        codon = codon.replace('u', 't')
         table[codon] = number
     return table
 
@@ -160,6 +185,8 @@ def parse_format_c_old(text, taxid):
                     codon = ''.join(p)
                     i = header.index(codon)
                     number = int(sline[i])
+                    codon = codon.replace('U', 'T')
+                    codon = codon.replace('u', 't')
                     table[codon] = number
     return table
 
@@ -181,7 +208,29 @@ def parse_format_c(text):
                 codon = ''.join(p)
                 i = header.index(codon)
                 number = int(sline[i])
+                codon = codon.replace('U', 'T')
+                codon = codon.replace('u', 't')
                 table[codon] = number
+    return table
+
+def parse_format_d(text):
+    '''
+    Expects 64 white space delimited rows in the following format:
+        AmAcid  Codon   Number       /1000      Fraction
+        Gly     GGG     22390.00      7.50      0.15
+        Gly     GGA     43380.00     14.53      0.29
+        Gly     GGU     71867.00     24.08      0.48
+    Returns dict.
+    '''
+    table = {}
+    for line in text.splitlines():
+        m = re.match(r'(?P<aa>\S{3})\s+(?P<codon>[ACGTU]{3})\s+(?P<number>\d+(?:\.\d*)?)\s+(?P<frequency_per_thousand>\d+(?:\.\d*)?)\s+(?P<relative_frequency>\d+(?:\.\d*)?)', line.rstrip())
+        if m:
+            codon = m.group('codon')
+            codon = codon.replace('U', 'T')
+            codon = codon.replace('u', 't')
+            number = int(round(float(m.group('number')), 0))
+            table[codon] = number
     return table
 
 def is_nt(sequence):
@@ -328,7 +377,7 @@ def potential_codons(aa_sequence, table):
 
 def process(args, usage_text, translation_table_number, sequence, ignore_mask=True):
     # Download the translation tables
-    print("Loading translation tabels.", file=sys.stderr) if not args.suppress else None
+    print("Loading translation tables.", file=sys.stderr) if not args.suppress else None
     text = download('https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi')
     translation_tables = parse_translation_tables(text)
     aa_to_codon_table, codon_to_aa_table = translation_tables[translation_table_number]
@@ -340,7 +389,7 @@ def process(args, usage_text, translation_table_number, sequence, ignore_mask=Tr
     
     # Try parsing the table each way to store codon usage
     print("Parsing codon usage table.", file=sys.stderr) if not args.suppress else None
-    for parse_type in [parse_format_a, parse_format_b, parse_format_c]:
+    for parse_type in [parse_format_a, parse_format_b, parse_format_c, parse_format_d]:
         if (len(usage_table) != 64):
             try:
                 usage_table = parse_type(usage_text)
@@ -430,21 +479,27 @@ def main():
     # Create parser
     parser = argparse.ArgumentParser(
         description=(
-            "Optimize 'aa' or 'nt' sequence." "\n"
-            "3 formats for codon usage table are supported." "\n"
-            "Output is in the format (FREQUENCY, SEQUENCE)." "\n"
-            "The program will first check to see if the input SEQUENCE "
-            "is composed exclusively of 'nt' characters. If it is not, "
-            "then it will check to see if it is made of 'aa' characters." "\n"
-            "Space (' ') characters are allowed in SEQUENCE." "\n"
+            "description:" "\n"
+            "  Program to optimize 'aa' or 'nt' sequences." "\n" "\n"
+            "  Several formats for codon usage table are supported (See included" "\n"
+            "  example files)." "\n" "\n"
+            "  Output is in the format (FREQUENCY, SEQUENCE)." "\n" "\n"
+            "  The program will first check to see if the input SEQUENCE is composed" "\n"
+            "  exclusively of 'nt' characters. If it is not, then it will check to" "\n"
+            "  see if it is made of 'aa' characters. Space (' ') characters are " "\n"
+            "  allowed in SEQUENCE." "\n"
         ),
         epilog=(
-            "example:" "\n"
-            "  (python3 simple-codon-optimizer.py 5501_codons.txt 1 ASRWLAQC)" "\n"
-            "example:" "\n"
-            '  (python3 simple-codon-optimizer.py "Codon usage table 5501.html" 1 "GCA TCA AGA TGG CTG GCG CAA TGT")' "\n"
-        )
+            "examples:" "\n"
+            "  python3 simple-codon-optimizer.py examples/5501_codons.txt 1 ASRWLAQC" "\n"
+            '  python3 simple-codon-optimizer.py "examples/Codon usage table 5501.html" 1 "GCA TCA AGA TGG CTG GCG CAA TGT"' "\n"
+            '  python3 simple-codon-optimizer.py examples/C_albicans_codon_usage.tab 12 EGRGSLLTCGDVEENPGP --deterministic' "\n"
+        ),
+        formatter_class=CustomHelpFormatter
     )
+    # Change the help text of the "-h" flag
+    parser._actions[0].help='Show this help message and exit.'
+    
     parser.add_argument('usage_table', metavar='USAGE_TABLE', type=str,
         help='File containing the codon usage table (counts).')
     parser.add_argument('translation_table', metavar='TRANSLATION_TABLE', type=int,
