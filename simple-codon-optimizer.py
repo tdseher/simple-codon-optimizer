@@ -5,6 +5,7 @@ Simple Codon Optimizer
 Copyright 2019 Thaddeus D. Seher (@tdseher)
 '''
 
+# Built-in imports
 import sys
 import random
 from collections import defaultdict
@@ -13,6 +14,7 @@ import re
 import itertools
 import operator
 import argparse
+from itertools import product
 
 class CustomHelpFormatter(argparse.HelpFormatter):
     """Help message formatter which retains any formatting in descriptions
@@ -328,7 +330,152 @@ def deterministic_aa(aa_sequence, table):
     
     return ''.join(nt_list)
 
-def potential_codons(aa_sequence, table):
+def process(args, table_text, translation_table_number, sequence, ignore_mask=True):
+    # Download the translation tables
+    print("Loading translation tables.", file=sys.stderr) if not args.suppress else None
+    text = download('https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi')
+    translation_tables = parse_translation_tables(text)
+    aa_to_codon_table, codon_to_aa_table = translation_tables[translation_table_number]
+    
+    # Add 'X' 'any' character to table
+    aa_to_codon_table['X'] = tuple(''.join(x) for x in itertools.product('ACGT', repeat=3))
+    
+    
+    # Process input sequence
+    sequence = sequence.replace(' ', '') # Remove any spaces
+    
+    # Deal with case-sensitivity
+    if ignore_mask:
+        sequence = sequence.upper()
+    
+    # Determine if input sequence is DNA/RNA or AA sequence
+    if is_nt(sequence):
+        print("Treating input sequence as 'nt'.", file=sys.stderr) if not args.suppress else None
+        # If it is a DNA sequence, then convert Ts to Us
+        sequence = sequence.replace('U', 'T')
+        sequence = sequence.replace('u', 't')
+        
+        # Convert it to an aa sequence
+        aa_seq = nt_to_aa(sequence, codon_to_aa_table)
+    elif is_aa(sequence):
+        print("Treating input sequence as 'aa'.", file=sys.stderr) if not args.suppress else None
+        aa_seq = sequence
+    else:
+        sys.exit("Sequence contains invalid characters.")
+    
+    usage_table = {}
+    
+    # Try parsing the table each way to store codon usage
+    print("Parsing input file.", file=sys.stderr) if not args.suppress else None
+    for parse_type in [parse_format_a, parse_format_b, parse_format_c, parse_format_d]:
+        if (len(usage_table) != 64):
+            try:
+                usage_table = parse_type(table_text)
+            except:
+                pass
+        else:
+            break
+    if (len(usage_table) == 64):
+        print("Input file is a codon usage table.", file=sys.stderr) if not args.suppress else None
+        use_codon_table(args, usage_table, aa_to_codon_table, codon_to_aa_table, aa_seq)
+    else:
+        print("No valid codon usage table discovered. Assuming input is an expression table.", file=sys.stderr) if not args.suppress else None
+        expression_table = load_expression_data(table_text)
+        use_expression_table(args, expression_table, aa_to_codon_table, codon_to_aa_table, aa_seq)
+    
+    print("Simple Codon Optimizer finished.", file=sys.stderr) if not args.suppress else None
+
+def use_codon_table(args, usage_table, aa_to_codon_table, codon_to_aa_table, aa_seq):
+    # Count the sum of all codons
+    n = sum(usage_table.values())
+    
+    # Let user know if the table was parsed successfully
+    print('Usage table:', file=sys.stderr) if not args.suppress else None
+    for k, v in usage_table.items():
+        print(k, v, v/n, file=sys.stderr) if not args.suppress else None
+    
+    # Link codon frequencies
+    # aa_to_codon_freq_table = {
+    #     'L': (('TTA', 'TTG', 'CTT', 'CTC', 'CTA', 'CTG'), (14.3, 13.0, 11.9, 10.2, 4.2, 48.4)),
+    # }
+    aa_to_codon_freq_table = {}
+    for aa, codons in aa_to_codon_table.items():
+        freqs = []
+        for codon in codons:
+            freqs.append(usage_table[codon]/n)
+        
+        aa_to_codon_freq_table[aa] = (codons, tuple(freqs))
+    
+    # Link aa frequencies
+    # codon_to_aa_freq_table = {
+    #     'TTA': ('L', 14.3),
+    #     'TTG': ('L', 13.0),
+    #     'CTT': ('L', 11.9),
+    #     'CTC': ('L', 10.2),
+    #     'CTA': ('L', 4.2),
+    #     'CTG': ('L', 48.4),
+    # }
+    codon_to_aa_freq_table = {}
+    for codon, aa in codon_to_aa_table.items():
+        codon_to_aa_freq_table[codon] = (aa, usage_table[codon]/n)
+    
+    # Let user know the aa sequence that will be translated
+    print('Confusion matrix with potential codons for each aa in sequence.', file=sys.stderr) if not args.suppress else None
+    columns = build_usage_columns(aa_seq, aa_to_codon_freq_table)
+    print(potential_codons_output(aa_seq, columns), file=sys.stderr) if not args.suppress else None
+    
+    # Once there is an aa sequence, then for each character,
+    # pick an optimal codon
+    output = defaultdict(int)
+    
+    samples = args.samples
+    
+    if args.deterministic:
+        samples = 1
+        output[deterministic_aa(aa_seq, aa_to_codon_freq_table)] += 1
+    else:
+        for i in range(samples):
+            output[stochastic_aa(aa_seq, aa_to_codon_freq_table)] += 1
+        
+    # Write results to STDOUT
+    #for k, v in sorted(output, key=lambda x: output[x], reverse=True):
+    for k, v in sorted(output.items(), key=operator.itemgetter(1), reverse=True)[:max(0, args.display)]:
+        print(v/samples, k)
+
+def use_expression_table(args, data, aa_to_codon_table, codon_to_aa_table, aa_seq):
+    model = build_glm(data)
+    
+    # Let user know the aa sequence that will be translated
+    print('Confusion matrix with potential codons for each aa in sequence.', file=sys.stderr) if not args.suppress else None
+    columns = build_expression_columns(aa_seq, aa_to_codon_table, model)
+    print(potential_codons_output(aa_seq, columns), file=sys.stderr) if not args.suppress else None
+
+def build_usage_columns(aa_sequence, table):
+    columns = []
+    
+    for i, aa in enumerate(aa_sequence):
+        codons, freqs = table[aa]
+        
+        cf = sorted(zip(freqs, codons), reverse=True)
+        columns.append([x[1] for x in cf])
+    
+    return columns
+
+def build_expression_columns(aa_sequence, aa_to_codon_table, model):
+    import pandas as pd
+    
+    columns = []
+    
+    for i, aa in enumerate(aa_sequence):
+        codons = aa_to_codon_table[aa]
+        scores = list(model.predict(pd.DataFrame({'CODON': codons, 'POSITION': [i]*len(codons)})))
+        
+        cs = sorted(zip(scores, codons), reverse=True)
+        columns.append([x[1] for x in cs])
+    
+    return columns
+
+def potential_codons_output(aa_sequence, columns):
     '''
     Returns multi-line string formatted as follows:
           aa   A   S   R   W   L   A   Q   C
@@ -339,12 +486,6 @@ def potential_codons(aa_sequence, table):
                   TCG CGG     CTA
         low       AGT AGG     TTA
     '''
-    columns = []
-    
-    for i, aa in enumerate(aa_sequence):
-        codons, freqs = table[aa]
-        cf = sorted(zip(freqs, codons), reverse=True)
-        columns.append([x[1] for x in cf])
     
     outputs = []
     outputs.append('  aa ')
@@ -375,114 +516,72 @@ def potential_codons(aa_sequence, table):
     
     return '\n'.join(outputs)
 
-def process(args, usage_text, translation_table_number, sequence, ignore_mask=True):
-    # Download the translation tables
-    print("Loading translation tables.", file=sys.stderr) if not args.suppress else None
-    text = download('https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi')
-    translation_tables = parse_translation_tables(text)
-    aa_to_codon_table, codon_to_aa_table = translation_tables[translation_table_number]
-    
-    # Add 'X' 'any' character to table
-    aa_to_codon_table['X'] = tuple(''.join(x) for x in itertools.product('ACGT', repeat=3))
-    
-    usage_table = {}
-    
-    # Try parsing the table each way to store codon usage
-    print("Parsing codon usage table.", file=sys.stderr) if not args.suppress else None
-    for parse_type in [parse_format_a, parse_format_b, parse_format_c, parse_format_d]:
-        if (len(usage_table) != 64):
-            try:
-                usage_table = parse_type(usage_text)
-            except:
-                pass
-        else:
-            break
-    
-    # Count the sum of all codons
-    n = sum(usage_table.values())
-    
-    # Let user know if the table was parsed successfully
-    print('Usage table:', file=sys.stderr) if not args.suppress else None
-    for k, v in usage_table.items():
-        print(k, v, v/n, file=sys.stderr) if not args.suppress else None
-    
-    # Remove any spaces
-    sequence = sequence.replace(' ', '')
-    
-    # Deal with case-sensitivity
-    if ignore_mask:
-        sequence = sequence.upper()
-    
-    if is_nt(sequence):
-        print("Treating input sequence as 'nt'.", file=sys.stderr) if not args.suppress else None
-        # If it is a DNA sequence, then convert Ts to Us
-        sequence = sequence.replace('U', 'T')
-        sequence = sequence.replace('u', 't')
-        
-        # Convert it to an aa sequence
-        aa_seq = nt_to_aa(sequence, codon_to_aa_table)
-    
-    elif is_aa(sequence):
-        print("Treating input sequence as 'aa'.", file=sys.stderr) if not args.suppress else None
-        aa_seq = sequence
-    else:
-        sys.exit("Sequence contains invalid characters.")
-    
-    # Link codon frequencies
-    # aa_to_codon_freq_table = {
-    #     'L': (('TTA', 'TTG', 'CTT', 'CTC', 'CTA', 'CTG'), (14.3, 13.0, 11.9, 10.2, 4.2, 48.4)),
-    # }
-    aa_to_codon_freq_table = {}
-    for aa, codons in aa_to_codon_table.items():
-        freqs = []
-        for codon in codons:
-            freqs.append(usage_table[codon]/n)
-        
-        aa_to_codon_freq_table[aa] = (codons, tuple(freqs))
-    
-    # Link aa frequencies
-    # codon_to_aa_freq_table = {
-    #     'TTA': ('L', 14.3),
-    #     'TTG': ('L', 13.0),
-    #     'CTT': ('L', 11.9),
-    #     'CTC': ('L', 10.2),
-    #     'CTA': ('L', 4.2),
-    #     'CTG': ('L', 48.4),
-    # }
-    codon_to_aa_freq_table = {}
-    for codon, aa in codon_to_aa_table.items():
-        codon_to_aa_freq_table[codon] = (aa, usage_table[codon]/n)
-    
-    # Let user know the aa sequence that will be translated
-    print('Confusion matrix with potential codons for each aa in sequence.', file=sys.stderr) if not args.suppress else None
-    print(potential_codons(aa_seq, aa_to_codon_freq_table), file=sys.stderr) if not args.suppress else None
-    
-    # Once there is an aa sequence, then for each character,
-    # pick an optimal codon
-    output = defaultdict(int)
-    
-    samples = args.samples
-    
-    if args.deterministic:
-        samples = 1
-        output[deterministic_aa(aa_seq, aa_to_codon_freq_table)] += 1
-    else:
-        for i in range(samples):
-            output[stochastic_aa(aa_seq, aa_to_codon_freq_table)] += 1
-        
-    # Write results to STDOUT
-    #for k, v in sorted(output, key=lambda x: output[x], reverse=True):
-    for k, v in sorted(output.items(), key=operator.itemgetter(1), reverse=True)[:max(0, args.display)]:
-        print(v/samples, k)
+def build_glm(data):
+    # Third-party imports
+    import pandas as pd
+    import statsmodels.formula.api as smf
 
-def main():
+    # Make list of all possible codons
+    all_codons = [''.join(x) for x in product('ACGT', repeat=3)] # All 64 codons
+    
+    # Convert data to Pandas 'DataFrame'
+    codon_list = []
+    position_list = []
+    expression_list = []
+    
+    for codon, position, expression in data:
+        codon_list.append(codon)
+        position_list.append(position)
+        expression_list.append(expression)
+    
+    pd_codon_list = pd.Categorical(codon_list, categories=all_codons, ordered=False)
+    
+    df = pd.DataFrame({
+        'CODON': pd_codon_list,
+        'POSITION': position_list,
+        'EXPRESSION': expression_list,
+    })
+    
+    # Build the GLM
+    model = smf.ols(formula='EXPRESSION ~ CODON * POSITION + 0', data=df)
+    res = model.fit()
+    
+    return res
+
+def load_expression_data(text):
+    data1 = []
+    for line in text.splitlines():
+        line = line.rstrip()
+        if (len(line) > 0):
+            if not re.match('\s*#', line):
+                sline = line.split('\t')
+                gene = sline[0]
+                expression = float(sline[1])
+                sequence = re.sub(r'[^ACGTRYMKWSBDHVN]', '', sline[2].upper()) # Convert to upper-case, and remove invalid characters
+                sequence_list = [sequence[x:x+3] for x in range(0, len(sequence), 3)] # Convert to list
+                if (len(sequence_list[-1]) != 3): # Remove incomplete codons
+                    sequence_list.pop()
+                data1.append((gene, expression, tuple(sequence_list)))
+    
+    data2 = []
+    for gene, expression, codons in data1:
+        for i, codon in enumerate(codons):
+            data2.append((codon, i, expression))
+    # (codon, position, expression)
+    # ('GCA', 0, 10)
+    # ('TAC', 1, 10)
+    # ('GCA', 2, 10)
+    
+    return data2
+
+def parse_arguments():
     # Create parser
     parser = argparse.ArgumentParser(
         description=(
             "description:" "\n"
-            "  Program to optimize 'aa' or 'nt' sequences." "\n" "\n"
-            "  Several formats for codon usage table are supported (See included" "\n"
-            "  example files)." "\n" "\n"
+            "  Simple program for optimizing a protein-coding sequence." "\n" "\n"
+            "  Several formats for codon usage table are supported (See included example files)." "\n"
+            "  Additionally, a gene expression table can be provided to base codon optimality from." "\n" "\n"
             "  Output is in the format (FREQUENCY, SEQUENCE)." "\n" "\n"
             "  The program will first check to see if the input SEQUENCE is composed" "\n"
             "  exclusively of 'nt' characters. If it is not, then it will check to" "\n"
@@ -500,8 +599,8 @@ def main():
     # Change the help text of the "-h" flag
     parser._actions[0].help='Show this help message and exit.'
     
-    parser.add_argument('usage_table', metavar='USAGE_TABLE', type=str,
-        help='File containing the codon usage table (counts).')
+    parser.add_argument('usage_table', metavar='USAGE/EXPRESSION_TABLE', type=str,
+        help='File containing either the codon usage table (counts), or a gene expression table.')
     parser.add_argument('translation_table', metavar='TRANSLATION_TABLE', type=int,
         help='The translation table id.')
     parser.add_argument('sequence', metavar='SEQUENCE', type=str,
@@ -517,6 +616,11 @@ def main():
         help='Suppress STDERR messages.')
     
     args = parser.parse_args()
+    
+    return args
+
+def main():
+    args = parse_arguments()
     
     # User specifies the table via text file or url
     # Format 'a' downloaded from r'https://www.kazusa.or.jp/codon/cgi-bin/showcodon.cgi?species=5501'
@@ -537,14 +641,14 @@ def main():
     
     if is_url(args.usage_table):
         # Download this url
-        usage_text = download(url)
+        table_text = download(url)
     elif is_file(args.usage_table):
         # Open this file
         with open(args.usage_table,'r') as flo:
-            usage_text = flo.read()
+            table_text = flo.read()
     
     # Translate
-    process(args, usage_text, args.translation_table, args.sequence)
+    process(args, table_text, args.translation_table, args.sequence)
     
 if (__name__ == '__main__'):
     main()
